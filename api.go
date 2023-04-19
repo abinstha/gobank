@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -27,6 +28,7 @@ func (s *APIServer) Run() {
 	// router.HandleFunc("/account", makeHTTPHandlerFunc(s.handleAccount))
 	router.HandleFunc("/account/{id}", makeHTTPHandlerFunc(s.handleGetAccountByID)).Methods("GET")
 	router.HandleFunc("/account", makeHTTPHandlerFunc(s.handleGetAccount)).Methods("GET")
+	router.HandleFunc("/account/{id}", makeHTTPHandlerFunc(s.handleDeleteAccount)).Methods("DELETE")
 
 	log.Println("JSON API server running on port: ", s.listenAddr)
 
@@ -48,11 +50,18 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request) error {
-	id := mux.Vars(r)["id"]
 
-	fmt.Println(id)
+	id, err := getID(r)
+	if err != nil {
+		return err
+	}
+	account, err := s.store.GetAccountById(id)
 
-	return WriteJSON(w, http.StatusOK, &Account{})
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, account)
 }
 
 func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
@@ -81,7 +90,14 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	id, err := getID(r)
+	if err != nil {
+		return err
+	}
+	if err := s.store.DeleteAccount(id); err != nil {
+		return err
+	}
+	return WriteJSON(w, http.StatusOK, map[string]int{"deleted": id})
 }
 
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
@@ -97,7 +113,7 @@ func WriteJSON(w http.ResponseWriter, status int, v any) error {
 type apiFunc func(http.ResponseWriter, *http.Request) error
 
 type ApiError struct {
-	Error string
+	Error string `json:"error"`
 }
 
 func makeHTTPHandlerFunc(f apiFunc) http.HandlerFunc {
@@ -106,4 +122,14 @@ func makeHTTPHandlerFunc(f apiFunc) http.HandlerFunc {
 			WriteJSON(w, http.StatusBadRequest, ApiError{Error: err.Error()})
 		}
 	}
+}
+
+func getID(r *http.Request) (int, error) {
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idStr)
+
+	if err != nil {
+		return id, fmt.Errorf("invalid id given: %s", idStr)
+	}
+	return id, nil
 }
