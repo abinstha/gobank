@@ -170,7 +170,7 @@ func withJWTAuth(handlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 
 		claims := token.Claims.(jwt.MapClaims)
 		// panic(reflect.TypeOf(claims["accountNumber"])) // prints the type
-		if account.Number != int64(claims["accountNumber"].(float64)) {
+		if account.Number != int64(claims["accountNumber"].(float64)) { // type assertion .(float64) is used to access the type of the interaface value
 			permissionDenied(w)
 			return
 		}
